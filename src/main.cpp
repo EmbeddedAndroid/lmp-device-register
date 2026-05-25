@@ -302,6 +302,25 @@ static int write_safely(const string &name, const string &content)
  * PIN, and don't want to parse/modify TOML to add it, so just write the whole
  * thing to /var/sota/
  */
+// libaktualizr ships telemetry disabled by default. Without
+// [telemetry] report_network = true / report_config = true in
+// sota.toml, the device never POSTs /system_info or
+// /system_info/network — so the on-prem stack has no way to see
+// the device's real IP (it falls back to the docker bridge gateway
+// the request was NAT'd through), hostname, MAC, or hwinfo.
+//
+// fioconfig + foundries.io cloud registrations ship telemetry off
+// because the cloud has out-of-band telemetry channels. For
+// on-prem we need the in-band aktualizr-lite telemetry; emit the
+// block unconditionally so any newly-provisioned device opts in.
+static void fill_telemetry_info(stringstream &sota_toml)
+{
+	sota_toml << "[telemetry]" << endl;
+	sota_toml << "report_network = true" << endl;
+	sota_toml << "report_config = true" << endl;
+	sota_toml << endl;
+}
+
 static void fill_p11_engine_info(lmp_options &opt, stringstream &sota_toml)
 {
 	sota_toml << "[p11]" << endl;
@@ -332,6 +351,13 @@ static int populate_sota_dir(lmp_options &opt, ptree &resp, string &pkey)
 
 			if (!opt.hsm_module.empty())
 				fill_p11_engine_info(opt, sota_toml);
+
+			// Append [telemetry] when the server-supplied
+			// sota.toml didn't already include it. Honoring an
+			// upstream-emitted block keeps the server in charge
+			// of operator-specific tuning if they ever add it.
+			if (sota_toml.str().find("[telemetry]") == string::npos)
+				fill_telemetry_info(sota_toml);
 
 			continue;
 		}
