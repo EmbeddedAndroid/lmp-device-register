@@ -63,14 +63,32 @@ pkg_search_module(GLIB REQUIRED glib-2.0)
 # Use C++11, but without GNU or other extensions
 set(CMAKE_CXX_STANDARD 11)
 
+set(LDR_COMMON_SOURCES
+    src/main.cpp
+    src/options.cpp
+    src/auth.cpp
+    src/openssl.cpp
+    src/ostree_cmdline.cpp
+)
+
 if(DISABLE_PKCS11)
-add_executable(lmp-device-register src/main.cpp src/options.cpp src/auth.cpp src/pkcs11_stub.cpp src/openssl.cpp)
+add_executable(lmp-device-register ${LDR_COMMON_SOURCES} src/pkcs11_stub.cpp)
 target_link_libraries(lmp-device-register ${CURL_LIBRARIES} ${Boost_LIBRARIES} ${GLIB_LDFLAGS} ${OPENSSL_LIBRARIES})
 else(DISABLE_PKCS11)
 pkg_check_modules(LIBP11 REQUIRED libp11)
-add_executable(lmp-device-register src/main.cpp src/options.cpp src/auth.cpp src/pkcs11.cpp src/openssl.cpp)
+add_executable(lmp-device-register ${LDR_COMMON_SOURCES} src/pkcs11.cpp)
 target_link_libraries(lmp-device-register ${CURL_LIBRARIES} ${Boost_LIBRARIES} ${GLIB_LDFLAGS} ${OPENSSL_LIBRARIES} ${LIBP11_LIBRARIES})
 endif(DISABLE_PKCS11)
 
 target_include_directories(lmp-device-register PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc> ${GLIB_INCLUDE_DIRS})
 install(TARGETS lmp-device-register RUNTIME DESTINATION bin)
+
+option(BUILD_TESTING "Build unit tests" ON)
+if(BUILD_TESTING)
+    enable_testing()
+    add_executable(test_ostree_cmdline tests/test_ostree_cmdline.cpp src/ostree_cmdline.cpp)
+    target_include_directories(test_ostree_cmdline PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>)
+    target_link_libraries(test_ostree_cmdline ${Boost_LIBRARIES})
+    add_test(NAME ostree_cmdline COMMAND test_ostree_cmdline)
+endif()
