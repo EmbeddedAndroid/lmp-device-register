@@ -73,6 +73,13 @@ namespace po = boost::program_options;
 #define FACTORY_HELP \
 "The factory name to subscribe to."
 
+#define OSTREE_OS_HELP \
+"Override the ostree OS name written to sota.toml's [pacman] os "          \
+"field. When unset, the value is parsed from /proc/cmdline's ostree= "     \
+"argument so aktualizr-lite's merge-deployment lookup matches the "        \
+"booted layout. Only needed when /proc/cmdline cannot be read or "         \
+"reports the wrong value."
+
 #define HSM_SO_PIN_HELP \
 "The PKCS#11 security officer pin - HSM only."
 
@@ -155,6 +162,7 @@ static void set_default_options(lmp_options &opt, string factory, string tags,
 	OPT_DEF_STR("api-token-header,H",
 		    opt.api_token_header, "OSF-TOKEN",API_TOKEN_HDR_HELP)
 	OPT_DEF_BOOL("force", opt.force, false, FORCE_HELP)
+	OPT_STR("os", opt.ostree_os, OSTREE_OS_HELP)
 
 #if defined DOCKER_COMPOSE_APP
 	OPT_STR("apps,a", opt.apps, APPS_HELP)

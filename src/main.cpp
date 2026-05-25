@@ -5,7 +5,9 @@
  */
 
 #include <device_register.h>
+#include <ostree_cmdline.h>
 #include <errno.h>
+#include <fstream>
 #include <signal.h>
 
 namespace po = boost::program_options;
@@ -175,6 +177,58 @@ static void put_compose_app_info(const lmp_options &opt, ptree &dev)
 #endif
 }
 
+/*
+ * detect_ostree_osname reads /proc/cmdline and delegates the parse to
+ * parse_ostree_osname_from_cmdline. Returns "" if /proc/cmdline is
+ * missing or unreadable, or the parse can't extract a value.
+ */
+static string detect_ostree_osname(void)
+{
+	std::ifstream f("/proc/cmdline");
+	if (!f.is_open())
+		return "";
+
+	std::stringstream buf;
+	buf << f.rdbuf();
+	return parse_ostree_osname_from_cmdline(buf.str());
+}
+
+/*
+ * put_ostree_os_info adds an "overrides.pacman.os" entry to the
+ * registration payload so the server-rendered sota.toml uses the
+ * correct OS name for ostree merge-deployment lookup. Resolution
+ * order:
+ *
+ *   1. operator-supplied --os <name> wins outright.
+ *   2. otherwise, the booted deployment's OS name parsed from
+ *      /proc/cmdline's ostree= kernel argument.
+ *   3. otherwise, no override is sent and the server default is
+ *      preserved.
+ *
+ * aktualizr-lite passes this value to ostree_sysroot_get_merge_
+ * deployment(); a mismatch with the actual on-disk layout produces
+ * "No merge deployment" and the update fails. Stock LmP images use
+ * "lmp" and need no override, but downstream distros that integrate
+ * LmP's SOTA stack (e.g. qcom-distro-sota deploys under "nodistro")
+ * register against the wrong OS name without this hint.
+ */
+static void put_ostree_os_info(const lmp_options &opt, ptree &dev)
+{
+	string osname;
+	if (!opt.ostree_os.empty()) {
+		osname = opt.ostree_os;
+		cout << "Using explicit ostree OS name: " << osname << endl;
+	} else {
+		osname = detect_ostree_osname();
+		if (!osname.empty())
+			cout << "Detected ostree OS name: " << osname << endl;
+	}
+	if (osname.empty())
+		return;
+
+	dev.put("overrides.pacman.os", "\"" + osname + "\"");
+}
+
 static void put_hsm_info(const lmp_options &opt, ptree &dev)
 {
 	if (opt.hsm_module.empty())
@@ -203,6 +257,9 @@ static void get_device_info(const lmp_options &opt, string &csr, ptree &dev)
 
 	/* Compose apps information */
 	put_compose_app_info(opt, dev);
+
+	/* OSTree OS name (overrides.pacman.os) */
+	put_ostree_os_info(opt, dev);
 
 	if (!opt.device_group.empty())
 		dev.put("group", opt.device_group);

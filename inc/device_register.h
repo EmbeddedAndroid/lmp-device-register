@@ -104,6 +104,7 @@ struct lmp_options {
 	string hsm_pin;
 	string sota_dir;
 	string pacman_tags;
+	string ostree_os;
 	bool start_daemon;
 	bool use_server;
 	bool production;
